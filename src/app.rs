@@ -18,7 +18,7 @@ use ::serde::{Deserialize, Serialize};
 use aws_config::{meta::region::RegionProviderChain, SdkConfig};
 use aws_types::region::Region as SdkRegion;
 use log::{debug, error, info};
-use rusoto_dynamodb::{AttributeDefinition, KeySchemaElement, TableDescription};
+use rusoto_dynamodb::{AttributeDefinition, TableDescription};
 use rusoto_signature::Region;
 use serde_yaml::Error as SerdeYAMLError;
 use std::{
