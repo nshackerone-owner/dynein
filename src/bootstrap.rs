@@ -23,12 +23,12 @@ use std::{
     thread, time,
 };
 
+use aws_sdk_dynamodb::{
+    operation::batch_write_item::BatchWriteItemError,
+    types::{AttributeValue, PutRequest, WriteRequest},
+};
 use futures::future::join_all;
 use log::{debug, error};
-use rusoto_core::RusotoError;
-use rusoto_dynamodb::{
-    AttributeValue, BatchWriteItemError, CreateTableError, PutRequest, WriteRequest,
-};
 use rusoto_signature::Region;
 use tempfile::Builder;
 
@@ -51,7 +51,7 @@ pub enum DyneinBootstrapError {
     PraseJSON(serde_json::Error),
     ReqwestError(reqwest::Error),
     ZipError(zip::result::ZipError),
-    BatchError(RusotoError<BatchWriteItemError>),
+    BatchError(aws_smithy_http::result::SdkError<BatchWriteItemError>),
 }
 impl fmt::Display for DyneinBootstrapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -95,8 +95,8 @@ impl From<zip::result::ZipError> for DyneinBootstrapError {
         Self::ZipError(e)
     }
 }
-impl From<RusotoError<BatchWriteItemError>> for DyneinBootstrapError {
-    fn from(e: RusotoError<BatchWriteItemError>) -> Self {
+impl From<aws_smithy_http::result::SdkError<BatchWriteItemError>> for DyneinBootstrapError {
+    fn from(e: aws_smithy_http::result::SdkError<BatchWriteItemError>) -> Self {
         Self::BatchError(e)
     }
 }
@@ -210,10 +210,12 @@ e.g. https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingSta
                         .iter()
                         .map(|(k, v)| (String::from(k), data::dispatch_jsonvalue_to_attrval(v)))
                         .collect();
-                    write_requests.push(WriteRequest {
-                        put_request: Some(PutRequest { item: item_attrval }),
-                        delete_request: None,
-                    });
+
+                    write_requests.push(
+                        WriteRequest::builder()
+                            .put_request(PutRequest::builder().set_item(Some(item_attrval)).build())
+                            .build(),
+                    );
                     if write_requests.len() == 25 {
                         break 'batch;
                     };
@@ -338,11 +340,11 @@ async fn prepare_table(cx: &app::Context, table_name: &str, keys: &[&str]) {
                 "Started to create table '{}' in {} region. status: {}",
                 &table_name,
                 &cx.effective_region().name(),
-                desc.table_status.unwrap()
+                desc.table_status.unwrap().as_str()
             );
         }
         Err(e) => match e {
-            RusotoError::Service(CreateTableError::ResourceInUse(_)) => println!(
+            aws_smithy_http::result::SdkError::ServiceError(_) => println!(
                 "[skip] Table '{}' already exists, skipping to create new one.",
                 &table_name
             ),
@@ -421,12 +423,12 @@ async fn wait_table_creation(cx: &app::Context, mut processing_tables: Vec<&str>
         let create_table_results = join_all(
             processing_tables
                 .iter()
-                .map(|t| control::describe_table_api(r, (*t).to_string())),
+                .map(|t| control::describe_table_api(cx, r, (*t).to_string())),
         )
         .await;
         let statuses: Vec<String> = create_table_results
-            .iter()
-            .map(|desc| desc.table_status.to_owned().unwrap())
+            .into_iter()
+            .map(|desc| desc.table_status.unwrap().as_str().to_owned())
             .collect();
         debug!("Current table statues: {:?}", statuses);
         processing_tables = processing_tables

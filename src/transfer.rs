@@ -25,7 +25,10 @@ use dialoguer::Confirm;
 use log::{debug, error};
 use serde_json::{de::StrRead, Deserializer, StreamDeserializer, Value as JsonValue};
 
-use rusoto_dynamodb::{AttributeValue, ScanOutput, WriteRequest};
+use aws_sdk_dynamodb::{
+    operation::scan::ScanOutput,
+    types::{AttributeValue, WriteRequest},
+};
 
 use super::app;
 use super::batch;
@@ -110,7 +113,7 @@ pub async fn export(
         .open(tmp_output_filename)?;
     tmp_output_file.set_len(0)?;
 
-    let mut last_evaluated_key: Option<HashMap<String, rusoto_dynamodb::AttributeValue>> = None;
+    let mut last_evaluated_key: Option<HashMap<String, AttributeValue>> = None;
     loop {
         // Invoke Scan API here. At the 1st iteration exclusive_start_key would be "None" as defined above, outside of the loop.
         // On 2nd iteration and later, passing last_evaluated_key from the previous loop as an exclusive_start_key.
