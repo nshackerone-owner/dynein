@@ -27,9 +27,9 @@ use aws_sdk_dynamodb::{
     operation::batch_write_item::BatchWriteItemError,
     types::{AttributeValue, PutRequest, WriteRequest},
 };
+use aws_types::region::Region;
 use futures::future::join_all;
 use log::{debug, error};
-use rusoto_signature::Region;
 use tempfile::Builder;
 
 use serde_json::Value as JsonValue;
@@ -300,24 +300,24 @@ https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AppendixSampleT
     println!(
         "\n\nNow all tables have sample data. Try following commands to play with dynein. Enjoy!"
     );
-    println!("  $ dy --region {} ls", &cx.effective_region().name());
+    println!("  $ dy --region {} ls", &cx.effective_region().as_ref());
     println!(
         "  $ dy --region {} desc --table Thread",
-        &cx.effective_region().name()
+        &cx.effective_region().as_ref()
     );
     println!(
         "  $ dy --region {} scan --table Thread",
-        &cx.effective_region().name()
+        &cx.effective_region().as_ref()
     );
     println!(
         "  $ dy --region {} use --table Thread",
-        &cx.effective_region().name()
+        &cx.effective_region().as_ref()
     );
     println!("  $ dy scan");
     println!("\nAfter you 'use' a table like above, dynein assume you're using the same region & table, which info is stored at ~/.dynein/config.yml and ~/.dynein/cache.yml");
     println!(
         "Let's move on with the '{}' region you've just 'use'd...",
-        &cx.effective_region().name()
+        &cx.effective_region().as_ref()
     );
     println!("  $ dy scan --table Forum");
     println!("  $ dy scan -t ProductCatalog");
@@ -339,7 +339,7 @@ async fn prepare_table(cx: &app::Context, table_name: &str, keys: &[&str]) {
             println!(
                 "Started to create table '{}' in {} region. status: {}",
                 &table_name,
-                &cx.effective_region().name(),
+                &cx.effective_region().as_ref(),
                 desc.table_status.unwrap().as_str()
             );
         }

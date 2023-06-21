@@ -20,9 +20,9 @@ use aws_sdk_dynamodb::types::{
     KeySchemaElement, KeyType, LocalSecondaryIndexDescription, ProvisionedThroughputDescription,
     ScalarAttributeType, StreamSpecification, TableDescription,
 };
+use aws_types::region::Region;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use log::error;
-use rusoto_signature::Region;
 
 use super::key;
 
@@ -94,7 +94,7 @@ pub fn print_table_description(region: Region, desc: TableDescription) {
 
     let print_table: PrintDescribeTable = PrintDescribeTable {
         name: String::from(&desc.clone().table_name.unwrap()),
-        region: String::from(region.name()),
+        region: String::from(region.as_ref()),
         status: String::from(desc.clone().table_status.unwrap().as_str()),
         schema: PrintPrimaryKeys {
             pk: key::typed_key("HASH", &desc)

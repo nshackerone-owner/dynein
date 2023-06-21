@@ -24,9 +24,9 @@ use aws_sdk_dynamodb::{
     Client as DynamoDbSdkClient,
 };
 use aws_sdk_ec2::Client as Ec2SdkClient;
+use aws_types::region::Region;
 use futures::future::join_all;
 use log::{debug, error};
-use rusoto_signature::Region;
 use std::{
     io::{self, Error as IOError, Write},
     time,
@@ -76,7 +76,7 @@ pub async fn list_tables(cx: app::Context) {
 
     println!(
         "DynamoDB tables in region: {}",
-        cx.effective_region().name()
+        cx.effective_region().as_ref()
     );
     if table_names.is_empty() {
         return println!("  No table in this region.");
@@ -85,7 +85,7 @@ pub async fn list_tables(cx: app::Context) {
     // if let Some(table_in_config) = cx.clone().config.and_then(|x| x.table) {
     if let Some(table_in_config) = cx.clone().cached_using_table_schema() {
         for table_name in table_names {
-            if cx.clone().effective_region().name() == table_in_config.region
+            if cx.clone().effective_region().as_ref() == table_in_config.region
                 && table_name == table_in_config.name
             {
                 println!("* {}", table_name);
@@ -133,7 +133,7 @@ pub async fn describe_table(cx: app::Context, target_table_to_desc: Option<Strin
     debug!(
         "Retrieved table to describe is: '{}' table in '{}' region.",
         &new_context.effective_table_name(),
-        &new_context.effective_region().name()
+        &new_context.effective_region().as_ref()
     );
 
     // save described table info into cache for future use.
@@ -163,7 +163,7 @@ pub async fn describe_table_api(
     region: &Region,
     table_name: String,
 ) -> TableDescription {
-    let config = cx.effective_sdk_config_with_region(region.name()).await;
+    let config = cx.effective_sdk_config_with_region(region.as_ref()).await;
     let ddb = DynamoDbSdkClient::new(&config);
 
     match ddb.describe_table().table_name(table_name).send().await {

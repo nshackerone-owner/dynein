@@ -17,9 +17,8 @@
 use ::serde::{Deserialize, Serialize};
 use aws_config::{meta::region::RegionProviderChain, SdkConfig};
 use aws_sdk_dynamodb::types::{AttributeDefinition, TableDescription};
-use aws_types::region::Region as SdkRegion;
+use aws_types::region::Region;
 use log::{debug, error, info};
-use rusoto_signature::Region;
 use serde_yaml::Error as SerdeYAMLError;
 use std::{
     collections::HashMap,
@@ -134,18 +133,18 @@ pub struct Context {
 impl Context {
     pub fn is_local(&self) -> bool {
         let region = self.effective_region();
-        region.name() == LOCAL_REGION
+        region.as_ref() == LOCAL_REGION
     }
 
     pub async fn effective_sdk_config(&self) -> SdkConfig {
         let region = self.effective_region();
-        let region_name = region.name();
+        let region_name = region.as_ref();
 
         self.effective_sdk_config_with_region(region_name).await
     }
 
     pub async fn effective_sdk_config_with_region(&self, region_name: &str) -> SdkConfig {
-        let sdk_region = SdkRegion::new(region_name.to_owned());
+        let sdk_region = Region::new(region_name.to_owned());
 
         let provider = RegionProviderChain::first_try(sdk_region);
         aws_config::from_env().region(provider).load().await
@@ -172,7 +171,7 @@ impl Context {
         // e.g. region set via AWS CLI (check: $ aws configure get region), or environment variable `AWS_DEFAULT_REGION`.
         //      ref: https://docs.rs/rusoto_signature/0.42.0/src/rusoto_signature/region.rs.html#282-290
         //      ref: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
-        Region::default()
+        Region::from_static("us-east-1")
     }
 
     pub fn effective_table_name(&self) -> String {
@@ -206,7 +205,7 @@ impl Context {
     pub fn effective_cache_key(&self) -> String {
         format!(
             "{}/{}",
-            &self.effective_region().name(),
+            &self.effective_region().as_ref(),
             &self.effective_table_name()
         )
     }
@@ -232,7 +231,7 @@ impl Context {
     }
 
     pub fn with_region(mut self, ec2_region: &str) -> Self {
-        self.overwritten_region = Some(Region::from_str(ec2_region).unwrap());
+        self.overwritten_region = Some(Region::new(ec2_region.to_owned()));
         self
     }
 
@@ -294,7 +293,7 @@ pub fn region_from_str(s: Option<String>, p: Option<u32>) -> Option<Region> {
     let port = p.unwrap_or(8000);
     match s.as_deref() {
         Some(LOCAL_REGION) => Some(region_dynamodb_local(port)),
-        Some(x) => Region::from_str(x).ok(), // convert Result<T, E> into Option<T>
+        Some(x) => Some(Region::new(x.to_owned())), // convert Result<T, E> into Option<T>
         None => None,
     }
 }
@@ -386,7 +385,7 @@ pub async fn use_table(
             let tbl = tbl.clone();
             let desc: TableDescription = control::describe_table_api(cx, &region, tbl.clone()).await;
             save_using_target(cx, desc)?;
-            println!("Now you're using the table '{}' ({}).", tbl, &region.name());
+            println!("Now you're using the table '{}' ({}).", tbl, &region.as_ref());
         },
         None => bye(1, "You have to specify a table. How to use (1). 'dy use --table mytable', or (2) 'dy use mytable'."),
     };
@@ -406,14 +405,14 @@ pub fn insert_to_table_cache(
     let region: Region = cx.effective_region();
     debug!(
         "Under the region '{}', trying to save table schema of '{}'",
-        &region.name(),
+        &region.as_ref(),
         &table_name
     );
 
     // retrieve current cache from Context and update target table desc.
     // key to save the table desc is "<RegionName>/<TableName>" -- e.g. "us-west-2/app_data"
     let mut cache: Cache = cx.clone().cache.expect("cx should have cache");
-    let cache_key = format!("{}/{}", region.name(), table_name);
+    let cache_key = format!("{}/{}", region.as_ref(), table_name);
 
     let mut table_schema_hashmap: HashMap<String, TableSchema> = match cache.tables {
         Some(ts) => ts,
@@ -427,7 +426,7 @@ pub fn insert_to_table_cache(
     table_schema_hashmap.insert(
         cache_key,
         TableSchema {
-            region: String::from(region.name()),
+            region: String::from(region.as_ref()),
             name: table_name,
             pk: key::typed_key("HASH", &desc).expect("pk should exist"),
             sk: key::typed_key("RANGE", &desc),
@@ -474,7 +473,7 @@ pub async fn table_schema(cx: &Context) -> TableSchema {
             .await;
 
             TableSchema {
-                region: String::from(cx.effective_region().name()),
+                region: String::from(cx.effective_region().as_ref()),
                 name: desc.clone().table_name.unwrap(),
                 pk: key::typed_key("HASH", &desc).expect("pk should exist"),
                 sk: key::typed_key("RANGE", &desc),
@@ -546,16 +545,14 @@ pub fn bye(code: i32, msg: &str) {
 Private functions
 ================================================= */
 
+// TODO: fix
 fn region_dynamodb_local(port: u32) -> Region {
     let endpoint_url = format!("http://localhost:{}", port);
     debug!(
         "setting DynamoDB Local '{}' as target region.",
         &endpoint_url
     );
-    Region::Custom {
-        name: LOCAL_REGION.to_owned(),
-        endpoint: endpoint_url,
-    }
+    Region::from_static(LOCAL_REGION)
 }
 
 fn retrieve_dynein_file_path(dft: DyneinFileType) -> Result<String, DyneinConfigError> {
@@ -597,7 +594,7 @@ fn save_using_target(cx: &mut Context, desc: TableDescription) -> Result<(), Dyn
     let port: u32 = cx.effective_port();
 
     // retrieve current config from Context and update "using target".
-    let region = Some(String::from(cx.effective_region().name()));
+    let region = Some(String::from(cx.effective_region().as_ref()));
     let mut config = cx.config.as_mut().expect("cx should have config");
     config.using_region = region;
     config.using_table = Some(table_name);
@@ -637,7 +634,7 @@ mod tests {
             overwritten_port: None,
             output: None,
         };
-        assert_eq!(cx1.effective_region(), Region::default());
+        assert_eq!(cx1.effective_region(), Region::from_static("us-east-1"));
         // cx1.effective_table_name(); ... exit(1)
 
         let cx2 = Context {
@@ -652,29 +649,35 @@ mod tests {
             overwritten_port: None,
             output: None,
         };
-        assert_eq!(cx2.effective_region(), Region::from_str("ap-northeast-1")?);
+        assert_eq!(
+            cx2.effective_region(),
+            Region::from_static("ap-northeast-1")
+        );
         assert_eq!(cx2.effective_table_name(), String::from("cfgtbl"));
 
         let cx3 = Context {
-            overwritten_region: Some(Region::from_str("us-east-1")?), // --region us-east-1
-            overwritten_table_name: Some(String::from("argtbl")),     // --table argtbl
+            overwritten_region: Some(Region::from_static("us-east-1")), // --region us-east-1
+            overwritten_table_name: Some(String::from("argtbl")),       // --table argtbl
             ..cx2.clone()
         };
-        assert_eq!(cx3.effective_region(), Region::from_str("us-east-1")?);
+        assert_eq!(cx3.effective_region(), Region::from_static("us-east-1"));
         assert_eq!(cx3.effective_table_name(), String::from("argtbl"));
 
         let cx4 = Context {
-            overwritten_region: Some(Region::from_str("us-east-1")?), // --region us-east-1
+            overwritten_region: Some(Region::from_static("us-east-1")), // --region us-east-1
             ..cx2.clone()
         };
-        assert_eq!(cx4.effective_region(), Region::from_str("us-east-1")?);
+        assert_eq!(cx4.effective_region(), Region::from_static("us-east-1"));
         assert_eq!(cx4.effective_table_name(), String::from("cfgtbl"));
 
         let cx5 = Context {
             overwritten_table_name: Some(String::from("argtbl")), // --table argtbl
             ..cx2.clone()
         };
-        assert_eq!(cx5.effective_region(), Region::from_str("ap-northeast-1")?);
+        assert_eq!(
+            cx5.effective_region(),
+            Region::from_static("ap-northeast-1")
+        );
         assert_eq!(cx5.effective_table_name(), String::from("argtbl"));
 
         Ok(())
