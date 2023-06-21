@@ -58,9 +58,9 @@ pub enum Mode {
     OnDemand,
 }
 
-impl Into<BillingMode> for Mode {
-    fn into(self) -> BillingMode {
-        match self {
+impl From<Mode> for BillingMode {
+    fn from(value: Mode) -> Self {
+        match value {
             Mode::Provisioned => BillingMode::Provisioned,
             Mode::OnDemand => BillingMode::PayPerRequest,
         }

@@ -27,7 +27,6 @@ use std::{
     fs,
     io::Error as IOError,
     path,
-    str::FromStr,
 };
 
 use super::control;

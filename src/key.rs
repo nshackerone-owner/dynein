@@ -113,13 +113,13 @@ pub fn typed_key_for_schema(
 ) -> Option<Key> {
     // Fetch Partition Key ("HASH") or Sort Key ("RANGE") from given Key Schema. pk should always exists, but sk may not.
     let target_key = ks
-        .into_iter()
+        .iter()
         .find(|x| x.key_type.as_ref().map(|v| v.as_str()) == Some(pk_or_sk));
     target_key.map(|key| Key {
         name: key.clone().attribute_name.unwrap(),
         // kind should be one of S/N/B, Which can be retrieved from AttributeDefinition's attribute_type.
         kind: KeyType::from_str(
-            &attrs
+            attrs
                 .iter()
                 .find(|at| at.attribute_name == key.attribute_name)
                 .expect("primary key should be in AttributeDefinition.")
