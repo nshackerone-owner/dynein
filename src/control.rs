@@ -52,7 +52,7 @@ pub async fn list_tables_all_regions(cx: app::Context) {
     let ec2 = Ec2SdkClient::new(&config);
     match ec2.describe_regions().send().await {
         Err(e) => {
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
         Ok(res) => {
@@ -169,7 +169,7 @@ pub async fn describe_table_api(
     match ddb.describe_table().table_name(table_name).send().await {
         Err(e) => {
             debug!("DescribeTable API call got an error -- {:#?}", e);
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
         Ok(res) => {
@@ -192,7 +192,7 @@ pub async fn create_table(cx: app::Context, name: String, given_keys: Vec<String
         Ok(desc) => util::print_table_description(cx.effective_region(), desc),
         Err(e) => {
             debug!("CreateTable API call got an error -- {:#?}", e);
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
     }
@@ -271,7 +271,7 @@ pub async fn create_index(cx: app::Context, index_name: String, given_keys: Vec<
     {
         Err(e) => {
             debug!("UpdateTable API call got an error -- {:#?}", e);
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
         Ok(res) => {
@@ -371,7 +371,7 @@ pub async fn update_table(
         Ok(desc) => util::print_table_description(cx.effective_region(), desc),
         Err(e) => {
             debug!("UpdateTable API call got an error -- {:#?}", e);
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
     }
@@ -429,7 +429,7 @@ pub async fn delete_table(cx: app::Context, name: String, skip_confirmation: boo
     match ddb.delete_table().table_name(name).send().await {
         Err(e) => {
             debug!("DeleteTable API call got an error -- {:#?}", e);
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
         Ok(res) => {
@@ -625,7 +625,7 @@ async fn list_tables_api(cx: app::Context) -> Vec<String> {
     match ddb.list_tables().send().await {
         Err(e) => {
             debug!("ListTables API call got an error -- {:#?}", e);
-            error!("{}", e.to_string());
+            error!("{}", e.into_service_error());
             std::process::exit(1);
         }
         // ListTables API returns blank array even if no table exists in a region.

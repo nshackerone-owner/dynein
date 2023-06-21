@@ -350,7 +350,7 @@ async fn prepare_table(cx: &app::Context, table_name: &str, keys: &[&str]) {
             ),
             _ => {
                 debug!("CreateTable API call got an error -- {:#?}", e);
-                error!("{}", e.to_string());
+                error!("{}", e.into_service_error());
                 std::process::exit(1);
             }
         },
